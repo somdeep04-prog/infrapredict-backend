@@ -11,40 +11,40 @@ CORS(app)
 model_duration = joblib.load('model_duration.pkl')
 model_budget = joblib.load('model_budget.pkl')
 explainer_duration = joblib.load('explainer_duration.pkl')
-le = joblib.load('label_encoder.pkl')
+encoders = joblib.load('encoders.pkl')
 
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.json
 
-    # Encode text inputs
-    project_type = le.transform([data['project_type']])[0]
-    terrain_type = le.transform([data['terrain_type']])[0]
-    region = le.transform([data['region']])[0]
-    material_volatility = le.transform([data['material_volatility']])[0]
+    # Encode text inputs using separate encoders
+    project_type = encoders['Project_Type'].transform([data['project_type']])[0]
+    terrain_type = encoders['Terrain_Type'].transform([data['terrain_type']])[0]
+    region = encoders['Region'].transform([data['region']])[0]
+    material_volatility = encoders['Material_Cost_Volatility'].transform([data['material_volatility']])[0]
 
     # Build input array
     features = np.array([[
         project_type,
         terrain_type,
         region,
-        data['planned_duration'],
-        data['planned_budget'],
-        data['approval_delay'],
-        data['vendor_performance'],
-        data['vendor_past_projects'],
-        data['vendor_avg_delay'],
-        data['labour_availability'],
-        data['labour_cost_index'],
+        float(data['planned_duration']),
+        float(data['planned_budget']),
+        float(data['approval_delay']),
+        float(data['vendor_performance']),
+        float(data['vendor_past_projects']),
+        float(data['vendor_avg_delay']),
+        float(data['labour_availability']),
+        float(data['labour_cost_index']),
         material_volatility,
-        data['weather_index'],
-        data['distance_supply_hub'],
-        data['logistics_cost_index'],
-        data['num_contractors'],
-        data['historical_delay_rate'],
-        data['historical_risk_score'],
-        data['supply_demand_ratio'],
-        data['resource_availability']
+        float(data['weather_index']),
+        float(data['distance_supply_hub']),
+        float(data['logistics_cost_index']),
+        float(data['num_contractors']),
+        float(data['historical_delay_rate']),
+        float(data['historical_risk_score']),
+        float(data['supply_demand_ratio']),
+        float(data['resource_availability'])
     ]])
 
     # Predictions
