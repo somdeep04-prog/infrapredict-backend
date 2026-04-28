@@ -71,11 +71,11 @@ def predict():
     hotspots = []
     for factor, impact in top_hotspots:
         total = sum([x[1] for x in shap_importance])
-        pct = round((impact / total) * 100, 1)
+        pct = round(float((impact / total) * 100), 1)
         level = 'HIGH' if pct > 25 else 'MED' if pct > 10 else 'LOW'
         hotspots.append({
             'factor': factor,
-            'impact': f'{pct}%',
+            'impact': f'{pct:.1f}%',
             'level': level
         })
 
