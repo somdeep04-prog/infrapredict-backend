@@ -3,17 +3,25 @@ from flask_cors import CORS
 import joblib
 import numpy as np
 import shap
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# Load all saved models
-model_duration = joblib.load('model_duration.pkl')
-model_budget = joblib.load('model_budget.pkl')
-explainer_duration = joblib.load('explainer_duration.pkl')
-encoders = joblib.load('encoders.pkl')
+# Lazy loading — models loaded on first request
+model_duration = None
+model_budget = None
+explainer_duration = None
+encoders = None
 
-# Smart defaults for missing fields
+def load_models():
+    global model_duration, model_budget, explainer_duration, encoders
+    if model_duration is None:
+        model_duration = joblib.load('model_duration.pkl')
+        model_budget = joblib.load('model_budget.pkl')
+        explainer_duration = joblib.load('explainer_duration.pkl')
+        encoders = joblib.load('encoders.pkl')
+
 DEFAULTS = {
     'capacity_mw': 200,
     'planned_duration': 52,
@@ -34,7 +42,7 @@ DEFAULTS = {
     'resource_availability': 6
 }
 
-def safe_float(val, default=0.0):
+def safe_float(val):
     try:
         if val is None or val == '' or val == 'null':
             return None
@@ -44,9 +52,9 @@ def safe_float(val, default=0.0):
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    load_models()
     data = request.json
 
-    # Track missing fields for confidence score
     missing_count = 0
     total_fields = len(DEFAULTS)
 
@@ -58,13 +66,11 @@ def predict():
             return DEFAULTS[key]
         return val
 
-    # Encode text inputs
     project_type = encoders['Project_Type'].transform([data.get('project_type', 'Substation')])[0]
     terrain_type = encoders['Terrain_Type'].transform([data.get('terrain_type', 'Flat')])[0]
     region = encoders['Region'].transform([data.get('region', 'North')])[0]
     material_volatility = encoders['Material_Cost_Volatility'].transform([data.get('material_volatility', 'Medium')])[0]
 
-    # Build input array — 21 features matching training data
     features = np.array([[
         project_type,
         terrain_type,
@@ -89,14 +95,11 @@ def predict():
         get_val('resource_availability')
     ]])
 
-    # Predictions
     predicted_duration = model_duration.predict(features)[0]
     predicted_budget = model_budget.predict(features)[0]
 
-    # Confidence score based on missing fields
     confidence = round(100 - (missing_count / total_fields) * 40)
 
-    # SHAP hotspots
     shap_values = explainer_duration.shap_values(features)
     feature_names = [
         'Project Type', 'Terrain Type', 'Region', 'Capacity MW',
@@ -108,7 +111,6 @@ def predict():
         'Supply Demand Ratio', 'Resource Availability'
     ]
 
-    # Get top 5 hotspots
     shap_importance = list(zip(feature_names, np.abs(shap_values[0])))
     shap_importance.sort(key=lambda x: x[1], reverse=True)
     top_hotspots = shap_importance[:5]
@@ -139,4 +141,5 @@ def home():
     return "InfraPredict AI Backend is running!"
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
